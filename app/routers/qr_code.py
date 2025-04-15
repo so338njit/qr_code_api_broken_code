@@ -21,7 +21,7 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 # Define an endpoint to create QR codes
 # It responds to POST requests at "/qr-codes/" and returns data matching the QRCodeResponse model
 # This endpoint is tagged as "QR Codes" in the API docs and returns HTTP 201 when a QR code is created successfully
-@router.post("/qr-codes/", response_model=QRCodeResponse, status_code=status.HTTP_200_OK, tags=["QR Codes"])
+@router.post("/qr-codes/", response_model=QRCodeResponse, status_code=status.HTTP_201_CREATED, tags=["QR Codes"])
 async def create_qr_code(request: QRCodeRequest, token: str = Depends(oauth2_scheme)):
     # Log the creation request
     logging.info(f"Creating QR code for URL: {request.url}")
@@ -37,7 +37,21 @@ async def create_qr_code(request: QRCodeRequest, token: str = Depends(oauth2_sch
     # Generate HATEOAS (Hypermedia As The Engine Of Application State) links for this resource
     links = generate_links("create", qr_filename, SERVER_BASE_URL, qr_code_download_url)
 
-    # Check if the QR code already exists to prevent duplicates
+    #If the QR Code already exists
+    if qr_code_full_path.exists():
+        logging.info("QR code already exists.")
+        # Return a 409 conflict response
+        return JSONResponse(
+            status_code=status.HTTP_409_CONFLICT, #Use 409 for already exisiting resources
+            content={"message": "QR code already exists.", "links": links}
+        )
+
+    # Generate the WR code if it does not exist
+    generate_qr_code(request.url, qr_code_full_path, FILL_COLOR, BACK_COLOR, request.size)
+    # Return a 201 created response
+    return QRCodeResponse(message="QR code created successfully.", qr_code_url=qr_code_download_url, links=links)
+
+"""    # Check if the QR code already exists to prevent duplicates
     if qr_code_full_path.exists():
         logging.info("QR code already exists.")
         # If it exists, return a conflict response
@@ -49,7 +63,7 @@ async def create_qr_code(request: QRCodeRequest, token: str = Depends(oauth2_sch
     # Generate the QR code if it does not exist
     generate_qr_code(request.url, qr_code_full_path, FILL_COLOR, BACK_COLOR, request.size)
     # Return a response indicating successful creation
-    return QRCodeResponse(message="QR code created successfully.", qr_code_url=qr_code_download_url, links=links)
+    return QRCodeResponse(message="QR code created successfully.", qr_code_url=qr_code_download_url, links=links)"""
 
 # Define an endpoint to list all QR codes
 # It responds to GET requests at "/qr-codes/" and returns a list of QRCodeResponse objects
